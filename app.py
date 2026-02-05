@@ -43,7 +43,7 @@ def add_book():
     books[book_id] = data
     return jsonify({"message": "Book added"}), 201
 
-    
+
 @app.route('/books', methods=['GET'])
 def get_all_books():
     books_list = list(books.values())
