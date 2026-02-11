@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from datetime import datetime, timezone
 
 
 
@@ -41,8 +42,35 @@ def add_book():
     if book_id in books:
         return jsonify(({"error": "Book already exists"})), 409
     
+    data["created_at"] = datetime.now(timezone.utc).isoformat()
+    data["updated_at"] = None
+    
     books[book_id] = data
-    return jsonify({"message": "Book added"}), 201
+
+    return jsonify({"message": "Book added sucessfully"}), 201
+
+
+@app.route("/books/<int:book_id>", methods=['PUT'])
+def update_book(book_id):
+    if book_id not in books:
+        return jsonify({"error": "Book not found"}), 404
+    
+    if not request.json:
+        return jsonify({"error": "Book must be JSON"}), 400
+    
+    data = request.get_json()
+    if "id" in data and data["id"] != book_id:
+        return jsonify({"error": "Book ID  cannot be changed"}), 400
+    
+    
+    
+    for field in REQUIRED_FIELDS:   
+        if field in data:
+            books[book_id][field] = data[field]
+
+    books[book_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+
 
 
 @app.route('/books', methods=['GET'])
@@ -50,12 +78,14 @@ def get_all_books():
     books_list = list(books.values())
     return jsonify({"books": books_list}), 200
 
+
 @app.route('/books/<int:book_id>', methods=['GET'])
 def get_book(book_id):
     if book_id not in books:
         return jsonify({"error": "Book not found"}), 404
     
     return jsonify(books[book_id]), 200
+
 
 @app.route('/books/<int:book_id>', methods=['DELETE'])
 def delete_book(book_id):
