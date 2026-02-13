@@ -38,7 +38,7 @@ def health_check():
 
 @app.route(("/books"), methods=['POST'])
 def add_book():
-    global next_book_id
+    
 
     if not request.is_json:
         return jsonify({"error": "Request must be JSON"}), 400
@@ -158,6 +158,10 @@ def get_book(book_id):
 def delete_book(book_id):
     cursor.execute("DELETE FROM books WHERE id = %s", (book_id,))
     db.commit()
+
+    if cursor.rowcount == 0:
+        return jsonify({"error": "Book not found"}), 404
+    
     return jsonify({"message": "Book deleted successfully"}), 200
 
 
