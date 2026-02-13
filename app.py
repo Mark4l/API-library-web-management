@@ -1,12 +1,23 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, timezone
 
+import mysql.connector
+import os
+
 
 
 app = Flask(__name__)
 
-books = {}
-next_book_id = 1
+
+
+db = mysql.connector.connect(
+    host=os.getenv("DB_HOST", "mysql"),
+    user=os.getenv("DB_USER", "markuser"),
+    password=os.getenv("DB_PASSWORD", "Adeyoola01"),
+    database=os.getenv("DB_NAME", "library_db")
+)
+
+cursor =db.cursor(dictionary=True)
 
 REQUIRED_FIELDS = {"title", "author", "isbn", "year", "genre", "description", }
 
@@ -40,70 +51,118 @@ def add_book():
     if data.keys() - REQUIRED_FIELDS:
         return jsonify({"error": "Extra fields are not allowed"}), 400
     
-    book_id = next_book_id
-    next_book_id += 1
+    now = datetime.now(timezone.utc)
 
-    book = data.copy()
-    book["id"] = book_id
-    book["created_at"] = datetime.now(timezone.utc).isoformat()
-    book["updated_at"] = None
+    query = """
+        INSERT INTO books (title, author, isbn, year, genre, description, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """
+
+    values = (
+        data["title"],
+        data["author"],
+        data["isbn"],
+        data["year"],
+        data["genre"],
+        data["description"],
+        now
+
+    )
+
+    cursor.execute(query, values)
+    db.commit()
     
-    books[book_id] = book
-
-    return jsonify({
-        "message": "Book added successfully",
-        "book": book
-    }), 201
+    return jsonify({"message": "Book added successfully"}), 201
 
 
 @app.route("/books/<int:book_id>", methods=['PUT'])
 def update_book(book_id):
-    if book_id not in books:
-        return jsonify({"error": "Book not found"}), 404
-    
-    if not request.is_json:
+    if not request.json:
         return jsonify({"error": "Book must be JSON"}), 400
     
     data = request.get_json()
+    now = datetime.now(timezone.utc)
 
-    if "id" in data:
-        return jsonify({"error": "Book ID cannot be changed"}), 400
+    query = """
+        UPDATE books
+        SET title=%s, author=%s, isbn=%s, year=%s,
+            genre=%s, description=%s, updated_at=%s
+        WHERE id=%s
+        """
+
+    values = (
+        data["title"],
+        data["author"],
+        data["isbn"],
+        data["year"],
+        data["genre"],
+        data["description"],
+        now,
+        book_id
+    )
+
+    cursor.execute(query, values)
+    db.commit()
+
+    return jsonify({"message": "Book updated successfully"}), 200
     
-    
-    
-    for field in REQUIRED_FIELDS:   
-        if field in data:
-            books[book_id][field] = data[field]
-
-    books[book_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
-
-    return jsonify({
-        "message": "Book updated successfully",
-        "book": books[book_id]
-    }), 200
-
 
 
 @app.route('/books', methods=['GET'])
 def get_all_books():
-    return jsonify({"books":list(books.values())}), 200
+    cursor.execute("SELECT * FROM books")
+    books = cursor.fetchall()
+    return jsonify({"books": books}), 200
+
+
+@app.route('/books/search', methods=['GET'])
+def search_books():
+    title = request.args.get("title")
+    author = request.args.get("author")
+    genre = request.args.get("genre")
+
+    query = "SELECT * FROM books WHERE 1=1"
+    values = []
+
+    if title:
+        query += " AND LOWER(title)LIKE LOWER(%s)"
+        values.append(f"%{title}%")
+    if author:
+        query += " AND LOWER(author)LIKE LOWER(%s)"
+        values.append(f"%{author}%")
+    if genre:
+        query += " AND LOWER(genre) LIKE LOWER(%s)"
+        values.append(f"%{genre}%")
+
+    cursor.execute(query, values)
+    results = cursor.fetchall()
+
+    if not results:
+        return jsonify({"message": "No matching books found"}), 404
+
+    return jsonify({"count": len(results), "results": results}), 200
+
+
 
 
 @app.route('/books/<int:book_id>', methods=['GET'])
 def get_book(book_id):
-    if book_id not in books:
+    cursor.execute("SELECT * FROM books WHERE id = %s", (book_id,))
+    book = cursor.fetchone()
+    if not book:
         return jsonify({"error": "Book not found"}), 404
-    
-    return jsonify(books[book_id]), 200
+    return jsonify(book), 200
 
 
 @app.route('/books/<int:book_id>', methods=['DELETE'])
 def delete_book(book_id):
-    if book_id not in books:
-        return jsonify({"error": "Book not found"}), 404
-    
-    del books[book_id]
+    cursor.execute("DELETE FROM books WHERE id = %s", (book_id,))
+    db.commit()
     return jsonify({"message": "Book deleted successfully"}), 200
+
+
+    
+
 
 
 
@@ -113,4 +172,4 @@ def delete_book(book_id):
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000)
