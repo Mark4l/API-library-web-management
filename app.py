@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from datetime import datetime, timezone
+from flask_cors import CORS
 
 import mysql.connector
 import os
@@ -7,6 +8,7 @@ import os
 
 
 app = Flask(__name__)
+CORS(app)
 
 
 
