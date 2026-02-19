@@ -10,5 +10,9 @@ pluggy==1.6.0
 Pygments==2.19.2
 pytest==9.0.2
 Werkzeug==3.1.5
+<<<<<<< HEAD
+mysql-connector-python
+=======
 mysql-connector-python
 flask-cors
+>>>>>>> d18564e593577e1e49fc7fad5e0460dc0d09bd3e
